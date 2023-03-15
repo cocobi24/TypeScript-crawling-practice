@@ -5,10 +5,10 @@ import cheerio from 'cheerio';
 
 interface City {
   name: string;
-  country: string;
-  area: number;
-  population: number;
-  flagImagePath: string;
+  country?: string;
+  area?: number;
+  population?: number;
+  flagImagePath?: string;
 }
 
 export class CapitalCityScraper {
@@ -53,21 +53,24 @@ export class CapitalCityScraper {
     const response = await axios.get(url);
     const html = response.data;
     const $ = cheerio.load(html);
+    $('.infobox .reference').remove();
 
     const cityName = $('#firstHeading').text().trim();
-    const country = $('.mergedtoprow th:contains(Country) + td').text().trim();
+    const country = $('.infobox th:contains(Country) + td').first().text().trim() || undefined;
 
-    const areaRows = $('.mergedtoprow th:contains(Area)').parent().nextUntil('.mergedtoprow');
-    const areaText = areaRows.find('th:contains(Capital city) + td').text().trim().replace(/ km2.*$/, '');
-    const area = parseFloat(areaText.replace(/,/g, ''));
+    const areaRows = $('.mergedtoprow th:contains(Area)').parent().nextUntil('.mergedtoprow').addBack();
+		const areaValues = areaRows.find('td').filter((i, el) => !!$(el).text().trim().match(/^[0-9,.]+\s+km2.*$/));
+		const areaText = areaValues.first().text().trim().replace(/ km2.*$/, '');
+		const area = parseFloat(areaText.replace(/,/g, '')) || undefined;
 
-    const populationRows = $('.mergedtoprow th:contains(Population)').parent().nextUntil('.mergedtoprow');
-    const populationText = populationRows.find('th:contains(Capital city) + td').text().trim();
-    const population = parseFloat(populationText.replace(/,/g, ''));
+    const populationRows = $('.mergedtoprow th:contains(Population)').parent().nextUntil('.mergedtoprow').addBack();
+		const populationValues = populationRows.find('td').filter((i, el) => !!$(el).text().trim().match(/^[0-9,.]+(\s+\(.*\))?$/));
+		const populationText = populationValues.first().text().trim();
+		const population = parseFloat(populationText.replace(/,/g, '')) || undefined;
 
-    const flagPageLink = $('.mergedtoprow a.image + div:contains(Flag)').prev().attr('href')!;
-    const flagPageUrl = new URL(flagPageLink, url).toString();
-    const flagImagePath = await this.scrapeImage(flagPageUrl);
+    const flagPageLink = $('.infobox a.image + div:contains(Flag)').prev().attr('href')!;
+		const flagPageUrl = flagPageLink && new URL(flagPageLink, url).toString();
+		const flagImagePath = flagPageUrl && await this.scrapeImage(flagPageUrl);
 
     const city: City = {
 			name: cityName,
@@ -109,7 +112,7 @@ export class CapitalCityScraper {
 async function main() {
   const scraper = new CapitalCityScraper();
   for await (let url of scraper.crawlCountries("https://en.wikipedia.org/wiki/List_of_European_countries_by_area")) {
-		console.log(url);
+		console.log(await scraper.scrapeCity(url));
 	}
 }
 
