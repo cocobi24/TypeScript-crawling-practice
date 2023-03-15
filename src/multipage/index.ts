@@ -21,8 +21,32 @@ export class CapitalCityScraper {
 		for (let link of links) {
 			const href = $(link).attr('href')!;
 			const countryPageUrl = new URL(href, url).toString();
-			console.log(countryPageUrl);
+			const capitalCityPageUrl = await this.crawlCountry(countryPageUrl);
+
+			if (capitalCityPageUrl) {
+				console.log(capitalCityPageUrl);
+			}
 		}
+	}
+
+  async crawlCountry(url: string) {
+		const response = await axios.get(url);
+		const html = response.data;
+		const $ = cheerio.load(html);
+		const capitalCityRow = $('.infobox th:contains(Capital)').parent();
+
+		if (capitalCityRow.length === 0) {
+			return url;
+		}
+
+		const capitalCityLink = capitalCityRow.find('td > a').attr('href');
+
+		if (!capitalCityLink) {
+			return undefined;
+		}
+
+		const capitalCityUrl = new URL(capitalCityLink, url).toString();
+		return capitalCityUrl;
 	}
 
   async scrapeCity(url: string) {
@@ -63,9 +87,8 @@ export class CapitalCityScraper {
 
     const imageLink = $('#file a').attr('href')!;
     const imageUrl = new URL(imageLink, url).toString();
-
     const imagePath = await this.downloadFile(imageUrl, 'flags');
-
+    
     return imagePath;
   }
 
